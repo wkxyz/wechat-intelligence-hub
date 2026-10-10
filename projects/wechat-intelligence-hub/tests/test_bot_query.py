@@ -242,5 +242,15 @@ class BotQueryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(p["error"]["code"], "invalid_request")
 
+
+    def test_query_wrapper_discovers_engine_from_repository(self):
+        wrapper = PROJECT.parents[1] / "skills/wechat-intelligence-hub/scripts/hub.sh"
+        env = dict(self.env, PYTHON_BIN=sys.executable)
+        env.pop("WECHAT_HUB_HOME", None)
+        result = subprocess.run(["bash", str(wrapper), "query", "status", "--db", str(self.db)],
+                                cwd=PROJECT.parents[1], env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["data"]["indexed_messages"], 7)
+
 if __name__ == "__main__":
     unittest.main()
