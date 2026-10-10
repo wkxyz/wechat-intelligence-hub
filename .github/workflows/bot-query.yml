@@ -1,0 +1,33 @@
+name: Bot query synthetic checks
+on:
+  push:
+    branches: ['codex/bot-query']
+  pull_request:
+    paths:
+      - 'projects/wechat-intelligence-hub/**'
+      - 'skills/wechat-intelligence-hub/**'
+      - '.github/workflows/bot-query.yml'
+permissions:
+  contents: read
+concurrency:
+  group: bot-query-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install HTML test dependency
+        run: python -m pip install -r projects/wechat-intelligence-hub/requirements-html.txt
+      - name: Bot query contracts
+        run: python -m unittest discover -s projects/wechat-intelligence-hub/tests -p test_bot_query.py -v
+      - name: Existing Hub suite
+        run: python -m unittest discover -s projects/wechat-intelligence-hub/tests -v
+      - name: Reader suite
+        run: python -m unittest discover -s projects/rion-wechat-reader/tests -v
+      - name: Public package privacy check
+        run: python projects/wechat-intelligence-hub/scripts/build_release.py --out /tmp/wechat-query-package
