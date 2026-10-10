@@ -35,7 +35,7 @@ class FakeBackend:
 class ConnectorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.home = Path(self.temp.name)
+        self.home = Path(self.temp.name).resolve()
         if sys.platform=="win32":
             import rion_wechat_reader as reader
             self.assertTrue(reader.windows_private_acl(self.home,initialize=True))
@@ -216,7 +216,8 @@ class RuntimeIntegrationTests(unittest.TestCase):
             reader.protect_new_file(self.fixture.keys)
         else:
             self.fixture.config.chmod(0o600)
-        self.home=Path(self.fixture.temp.name)/"connector"
+        self.home=Path(self.fixture.temp.name).resolve()/"connector"
+        self.fixture.config=self.fixture.config.resolve()
         self.connector=Connector(self.home,RuntimeBackend())
     def tearDown(self):
         gc.collect()
@@ -238,12 +239,12 @@ class RuntimeIntegrationTests(unittest.TestCase):
         self.assertNotIn(str(self.fixture.keys),serialized)
         self.assertEqual(before,{path.name:path.read_bytes() for path in self.fixture.data_root.glob("*.db")})
     def test_real_worker_import_and_restart(self):
-        root=Path(self.fixture.temp.name)/"encrypted"
+        root=Path(self.fixture.temp.name).resolve()/"encrypted"
         root.mkdir()
         key="22"*32
         for source in (self.fixture.session,self.fixture.contact,self.fixture.message):
             self.fixture.encrypt_fixture(source,root/source.name,key)
-        material=Path(self.fixture.temp.name)/"access.json"
+        material=Path(self.fixture.temp.name).resolve()/"access.json"
         material.write_text(json.dumps({"schema_version":2,"keys":{
             path.read_bytes()[:16].hex():key for path in root.glob("*.db")}}))
         import rion_wechat_reader as reader

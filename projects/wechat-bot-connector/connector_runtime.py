@@ -67,6 +67,9 @@ def worker(action):
         # Do not print exception strings, account paths, keys or tracebacks.
         category="dependency_required" if isinstance(exc,ImportError) else "worker_filesystem_failed" if isinstance(exc,OSError) else "worker_input_failed" if isinstance(exc,ValueError) else "worker_type_failed" if isinstance(exc,TypeError) else "worker_attribute_failed" if isinstance(exc,AttributeError) else "operation_failed"
         code=getattr(exc,"code",category)
+        if type(exc).__module__=="rion_wechat_access" and type(exc).__name__=="AccessError":
+            known={"symlink_path_rejected","database_root_missing","account_selection_required","reader_config_exists_not_overwritten","config_directory_not_private","reader_verification_failed","key_environment_override_requires_removal"}
+            if exc.args and exc.args[0] in known: code=exc.args[0]
         if not isinstance(code,str) or len(code)>80 or not all(c.isalnum() or c=="_" for c in code): code="operation_failed"
         print(json.dumps({"ok":False,"error":{"code":code,"message":"本地读取未完成，请检查材料、权限和运行依赖。"}},ensure_ascii=False))
         return 2
