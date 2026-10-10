@@ -60,6 +60,7 @@ class ConnectorWindow:
         if demo:
             ttk.Label(outer,text="演示模式：全部数据虚构，不读取真实账号。",foreground="#9a5b00").pack(anchor="w",pady=(0,12))
         notebook=ttk.Notebook(outer)
+        self.notebook=notebook
         notebook.pack(fill="both",expand=True)
         access=ttk.Frame(notebook,padding=22)
         bot=ttk.Frame(notebook,padding=22)

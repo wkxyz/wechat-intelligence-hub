@@ -82,7 +82,11 @@ def main():
         import rion_wechat_reader
         import rion_wechat_access
         import wechat_query
-        print(json.dumps({"ok":True,"tk_version":tkinter.TkVersion,"mode":"no_account_read"}))
+        from sqlcipher3 import dbapi2 as sqlcipher
+        import zstandard
+        with sqlcipher.connect(":memory:") as database:
+            cipher_version=database.execute("PRAGMA cipher_version").fetchone()[0]
+        print(json.dumps({"ok":True,"tk_version":tkinter.TkVersion,"sqlcipher":cipher_version,"zstandard":zstandard.__version__,"mode":"no_account_read"}))
         return 0
     from connector_app import launch
     launch(demo=args.demo)

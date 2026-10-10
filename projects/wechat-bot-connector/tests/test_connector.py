@@ -1,6 +1,7 @@
 """Synthetic connection and pairing checks. Never reads a real account."""
 import http.client
 import importlib.util
+import os
 import threading
 import json
 from pathlib import Path
@@ -11,6 +12,10 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from connector_core import Connector, ConnectorError, Gateway, RuntimeBackend, safe_access
+if os.environ.get("CONNECTOR_TEST_EXECUTABLE"):
+    import connector_core
+    executable=str(Path(os.environ["CONNECTOR_TEST_EXECUTABLE"]).resolve())
+    connector_core.runtime_command=lambda:[executable]
 
 class FakeBackend:
     def __init__(self):
@@ -218,12 +223,26 @@ class RuntimeIntegrationTests(unittest.TestCase):
         self.assertNotIn(str(self.fixture.keys),serialized)
         self.assertEqual(before,{path.name:path.read_bytes() for path in self.fixture.data_root.glob("*.db")})
     def test_real_worker_import_and_restart(self):
-        result=self.connector.preview(str(self.fixture.data_root),str(self.fixture.keys))
+        root=Path(self.fixture.temp.name)/"encrypted"
+        root.mkdir()
+        key="22"*32
+        for source in (self.fixture.session,self.fixture.contact,self.fixture.message):
+            self.fixture.encrypt_fixture(source,root/source.name,key)
+        material=Path(self.fixture.temp.name)/"access.json"
+        material.write_text(json.dumps({"schema_version":2,"keys":{
+            path.read_bytes()[:16].hex():key for path in root.glob("*.db")}}))
+        material.chmod(0o600)
+        result=self.connector.preview(str(root),str(material))
         self.assertEqual(result["state"],"ready_to_configure",result)
-        result=self.connector.apply(str(self.fixture.data_root),str(self.fixture.keys))
+        result=self.connector.apply(str(root),str(material))
         self.assertTrue(result["can_query"],result)
         restored=Connector(self.home,RuntimeBackend())
         self.assertTrue(restored.inspect()["can_query"])
+        token=restored.pair(restored.create_pairing()["code"])["device_token"]
+        evidence=restored.query(token,{"command":"search","query":"你好"})
+        self.assertTrue(evidence["ok"],evidence)
+        self.assertNotIn(key,json.dumps(evidence))
+        restored.revoke()
         self.assertFalse(restored.status()["paired"])
 
 if __name__=="__main__":
