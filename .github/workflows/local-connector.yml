@@ -9,6 +9,9 @@ on:
       - 'projects/rion-wechat-reader/**'
       - 'projects/wechat-intelligence-hub/wechat_query.py'
   workflow_dispatch:
+concurrency:
+  group: local-connector-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

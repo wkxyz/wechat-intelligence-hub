@@ -41,6 +41,7 @@ class ConnectorWindow:
         self.gateway=None
         self.events=queue.Queue()
         self.busy=False
+        self.closed=False
         root.title("微信本地连接器"+(" · 演示" if demo else ""))
         root.geometry("850x740")
         root.minsize(760,720)
@@ -59,6 +60,7 @@ class ConnectorWindow:
         ttk.Label(outer,text="密钥保存在这台电脑。Bot 通过授权查询获得消息依据。",style="Lead.TLabel").pack(anchor="w",pady=(8,24))
         if demo:
             ttk.Label(outer,text="演示模式：全部数据虚构，不读取真实账号。",foreground="#9a5b00").pack(anchor="w",pady=(0,12))
+        ttk.Label(outer,text="只读消息 · 不发送微信 · 不生成报告",style="Lead.TLabel").pack(side="bottom",anchor="w",pady=(18,0))
         notebook=ttk.Notebook(outer)
         self.notebook=notebook
         notebook.pack(fill="both",expand=True)
@@ -113,9 +115,8 @@ class ConnectorWindow:
         controls.pack(anchor="w")
         ttk.Button(controls,text="停止连接",command=self.stop).pack(side="left",padx=(0,10))
         ttk.Button(controls,text="解除 Bot 绑定",command=self.revoke).pack(side="left")
-        ttk.Label(outer,text="只读消息 · 不发送微信 · 不生成报告",style="Lead.TLabel").pack(anchor="w",pady=(18,0))
         root.protocol("WM_DELETE_WINDOW",self.close)
-        root.after(150,self.tick)
+        self.tick_after=root.after(150,self.tick)
     def make_picker(self,parent,label,variable,command):
         ttk.Label(parent,text=label).pack(anchor="w",pady=(0,6))
         row=ttk.Frame(parent)
@@ -162,6 +163,7 @@ class ConnectorWindow:
         root,source=self.database.get().strip(),self.source.get().strip()
         self.execute(lambda:self.connector.apply(root,source))
     def tick(self):
+        if self.closed: return
         try:
             kind,value=self.events.get_nowait()
             self.busy=False
@@ -186,7 +188,7 @@ class ConnectorWindow:
             else:
                 self.binding_state.set("配对码已过期。点击上方按钮重新生成。")
                 self.code.set("")
-        self.root.after(150,self.tick)
+        self.tick_after=self.root.after(150,self.tick)
     def start_pairing(self):
         if not self.consent.get():
             messagebox.showinfo("需要授权","勾选允许本机 Bot 查询后再继续。"); return
@@ -213,7 +215,10 @@ class ConnectorWindow:
         try: self.connector.revoke(); self.code.set(""); self.binding_state.set("绑定已解除。")
         except ConnectorError as exc: messagebox.showinfo("绑定状态",exc.message)
     def close(self):
+        if self.closed: return
+        self.closed=True
         self.stop()
+        self.root.after_cancel(self.tick_after)
         self.root.destroy()
 
 def launch(demo=False):
