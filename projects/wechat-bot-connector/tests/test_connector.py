@@ -2,6 +2,7 @@
 import http.client
 import importlib.util
 import os
+import gc
 import threading
 import json
 from pathlib import Path
@@ -35,6 +36,9 @@ class ConnectorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.home = Path(self.temp.name)
+        if sys.platform=="win32":
+            import rion_wechat_reader as reader
+            self.assertTrue(reader.windows_private_acl(self.home,initialize=True))
         self.backend = FakeBackend()
         self.now = 1000.0
         self.connector = Connector(self.home, self.backend, clock=lambda:self.now)
@@ -204,14 +208,25 @@ class RuntimeIntegrationTests(unittest.TestCase):
         spec.loader.exec_module(module)
         self.fixture=module.ReaderContractTest(methodName="runTest")
         self.fixture.setUp()
-        self.fixture.config.chmod(0o600)
+        gc.collect()  # SQLite context managers commit but do not close on Windows.
+        import rion_wechat_reader as reader
+        if sys.platform=="win32":
+            self.assertTrue(reader.windows_private_acl(Path(self.fixture.temp.name),initialize=True))
+            reader.protect_new_file(self.fixture.config)
+            reader.protect_new_file(self.fixture.keys)
+        else:
+            self.fixture.config.chmod(0o600)
         self.home=Path(self.fixture.temp.name)/"connector"
         self.connector=Connector(self.home,RuntimeBackend())
     def tearDown(self):
+        gc.collect()
         self.fixture.tearDown()
     def test_real_worker_ready_pair_and_read_only_query(self):
         before={path.name:path.read_bytes() for path in self.fixture.data_root.glob("*.db")}
-        result=self.connector.use_existing(self.fixture.config)
+        try:
+            result=self.connector.use_existing(self.fixture.config)
+        except ConnectorError as exc:
+            self.fail("Synthetic worker failure: "+exc.code)
         self.assertEqual(result["state"],"ready")
         self.assertTrue(result["can_query"])
         token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
@@ -231,8 +246,12 @@ class RuntimeIntegrationTests(unittest.TestCase):
         material=Path(self.fixture.temp.name)/"access.json"
         material.write_text(json.dumps({"schema_version":2,"keys":{
             path.read_bytes()[:16].hex():key for path in root.glob("*.db")}}))
-        material.chmod(0o600)
-        result=self.connector.preview(str(root),str(material))
+        import rion_wechat_reader as reader
+        reader.protect_new_file(material)
+        try:
+            result=self.connector.preview(str(root),str(material))
+        except ConnectorError as exc:
+            self.fail("Synthetic worker failure: "+exc.code)
         self.assertEqual(result["state"],"ready_to_configure",result)
         result=self.connector.apply(str(root),str(material))
         self.assertTrue(result["can_query"],result)

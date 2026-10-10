@@ -65,7 +65,8 @@ def worker(action):
         raise ValueError
     except Exception as exc:
         # Do not print exception strings, account paths, keys or tracebacks.
-        code=getattr(exc,"code","operation_failed")
+        category="dependency_required" if isinstance(exc,ImportError) else "worker_filesystem_failed" if isinstance(exc,OSError) else "worker_input_failed" if isinstance(exc,ValueError) else "worker_type_failed" if isinstance(exc,TypeError) else "worker_attribute_failed" if isinstance(exc,AttributeError) else "operation_failed"
+        code=getattr(exc,"code",category)
         if not isinstance(code,str) or len(code)>80 or not all(c.isalnum() or c=="_" for c in code): code="operation_failed"
         print(json.dumps({"ok":False,"error":{"code":code,"message":"本地读取未完成，请检查材料、权限和运行依赖。"}},ensure_ascii=False))
         return 2
