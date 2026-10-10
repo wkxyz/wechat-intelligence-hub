@@ -7,7 +7,6 @@ import json
 import os
 from pathlib import Path
 import secrets
-import stat
 import subprocess
 import sys
 import threading
@@ -60,7 +59,8 @@ class RuntimeBackend:
 
 def safe_access(value):
     state=str(value.get("state","unknown"))
-    result={"state":state,"can_query":state=="ready" and value.get("live_database_read_ok") is True,
+    live_ok=value.get("live_database_read_ok") is True
+    result={"state":state,"live_database_read_ok":live_ok,"can_query":state=="ready" and live_ok,
         "configured":bool(value.get("configured")),"reused_existing_configuration":bool(value.get("reused_existing_configuration")),
         "recovery_review_required":bool(value.get("recovery_review_required")),"counts":{}}
     for key,number in (value.get("counts") or {}).items():
@@ -125,17 +125,24 @@ class Connector:
     def disconnect(self):
         with self.lock:
             self.ready=False
+            self.token_digest=None
             self.pair_digest=None
             self.preview_selection=None
+            self.last_status={"state":"stopped","can_query":False,"counts":{}}
             self.version+=1
 
     def _access(self, root=None, source=None, apply=False):
+        with self.lock:
+            version,config=self.version,self.config
         try:
-            value=safe_access(self.backend.access(self.config,root,source,apply))
+            value=safe_access(self.backend.access(config,root,source,apply))
         except ConnectorError:
-            self.disconnect()
+            with self.lock:
+                if version==self.version: self.disconnect()
             raise
         with self.lock:
+            if version!=self.version or config!=self.config:
+                raise ConnectorError("operation_cancelled","连接状态已改变，本次验证结果已取消。")
             self.last_status=value
             self.ready=value["can_query"]
             self.version+=1
@@ -147,12 +154,14 @@ class Connector:
 
     def use_existing(self, config):
         self.disconnect()
-        self.config=Path(config).expanduser()
+        with self.lock:
+            self.config=Path(config).expanduser()
         return self.inspect()
 
     def use_new_profile(self):
         self.disconnect()
-        self.config=self.home/"reader.json"
+        with self.lock:
+            self.config=self.home/"reader.json"
 
     def preview(self, root, source):
         self.disconnect()

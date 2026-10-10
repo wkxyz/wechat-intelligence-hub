@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from connector_core import Connector, ConnectorError, Gateway
 
 STATE_TEXT={
+ "stopped":("连接已停止","重新检查本机配置后再授权 Bot。"),
  "not_checked":("尚未检查","先检查已有配置，或选择本机数据库目录和访问材料。"),
  "ready":("数据库可读","已通过本地验证。可以启用本机 Bot 查询；读取范围以查询结果为准。"),
  "ready_to_configure":("材料已验证","点击“连接已验证账号”保存新的本机配置。"),
@@ -41,8 +42,8 @@ class ConnectorWindow:
         self.events=queue.Queue()
         self.busy=False
         root.title("微信本地连接器"+(" · 演示" if demo else ""))
-        root.geometry("820x640")
-        root.minsize(720,600)
+        root.geometry("850x740")
+        root.minsize(760,720)
         root.configure(bg="#f7f9fc")
         style=ttk.Style()
         style.theme_use("clam")
@@ -68,12 +69,19 @@ class ConnectorWindow:
         self.detail=tk.StringVar(value=STATE_TEXT["not_checked"][1])
         ttk.Label(access,textvariable=self.status_text,style="Status.TLabel").pack(anchor="w")
         ttk.Label(access,textvariable=self.detail,wraplength=690,style="Lead.TLabel").pack(anchor="w",pady=(8,18))
-        self.existing=ttk.Button(access,text="检查并复用已有 Reader 配置",command=self.check_existing)
-        self.existing.pack(anchor="w",pady=(0,22))
+        reuse=ttk.Frame(access)
+        reuse.pack(anchor="w",pady=(0,22))
+        self.saved=ttk.Button(reuse,text="恢复连接器已保存账号",command=self.check_saved)
+        self.saved.pack(side="left",padx=(0,10))
+        self.existing=ttk.Button(reuse,text="复用已有 Reader 配置",command=self.check_existing)
+        self.existing.pack(side="left")
+        self.pickers=[]
         self.database=tk.StringVar()
         self.source=tk.StringVar()
         self.make_picker(access,"本人账号的数据库目录",self.database,self.choose_database)
         self.make_picker(access,"本机访问材料文件（JSON）",self.source,self.choose_source)
+        self.database.trace_add("write",lambda *args:self.changed())
+        self.source.trace_add("write",lambda *args:self.changed())
         ttk.Label(access,text="只选择文件，不在界面显示密钥内容。新账号使用独立配置，不覆盖已有 Reader。",wraplength=690,style="Lead.TLabel").pack(anchor="w",pady=(12,16))
         actions=ttk.Frame(access)
         actions.pack(anchor="w")
@@ -111,8 +119,11 @@ class ConnectorWindow:
         ttk.Label(parent,text=label).pack(anchor="w",pady=(0,6))
         row=ttk.Frame(parent)
         row.pack(fill="x",pady=(0,14))
-        ttk.Entry(row,textvariable=variable).pack(side="left",fill="x",expand=True)
-        ttk.Button(row,text="选择…",command=command).pack(side="left",padx=(10,0))
+        entry=ttk.Entry(row,textvariable=variable)
+        entry.pack(side="left",fill="x",expand=True)
+        button=ttk.Button(row,text="选择…",command=command)
+        button.pack(side="left",padx=(10,0))
+        self.pickers.extend((entry,button))
     def changed(self):
         if self.busy: return
         self.stop()
@@ -126,7 +137,7 @@ class ConnectorWindow:
     def execute(self,operation):
         if self.busy: return
         self.busy=True
-        for button in (self.existing,self.preview_button,self.apply_button,self.bind_button):
+        for button in (self.saved,self.existing,self.preview_button,self.apply_button,self.bind_button,*self.pickers):
             button.configure(state="disabled")
         self.progress.configure(text="正在本机验证，请稍候…")
         def task():
@@ -134,6 +145,9 @@ class ConnectorWindow:
             except ConnectorError as exc: self.events.put(("error",exc.message))
             except Exception: self.events.put(("error","操作未完成。原始错误和访问材料未输出。"))
         threading.Thread(target=task,daemon=True).start()
+    def check_saved(self):
+        self.stop()
+        self.execute(lambda:self.connector.use_existing(self.connector.home/"reader.json"))
     def check_existing(self):
         self.stop()
         path=Path(os.environ.get("RION_WECHAT_READER_CONFIG",str(Path.home()/".config/rion-wechat-reader/config.json")))
@@ -150,7 +164,7 @@ class ConnectorWindow:
         try:
             kind,value=self.events.get_nowait()
             self.busy=False
-            for button in (self.existing,self.preview_button,self.bind_button): button.configure(state="normal")
+            for button in (self.saved,self.existing,self.preview_button,self.bind_button,*self.pickers): button.configure(state="normal")
             if kind=="result":
                 title,detail=STATE_TEXT.get(value["state"],("尚未接通","核对账号目录、访问材料和读取依赖；不会自动获取密钥。"))
                 self.status_text.set(title); self.detail.set(detail)
@@ -188,8 +202,10 @@ class ConnectorWindow:
         self.root.clipboard_clear()
         self.root.clipboard_append("地址："+self.endpoint.get()+"\n配对码："+self.code.get())
     def stop(self):
-        if self.gateway: self.gateway.stop(); self.gateway=None
         self.connector.disconnect()
+        if self.gateway: self.gateway.stop(); self.gateway=None
+        self.status_text.set("连接已停止") if hasattr(self,"status_text") else None
+        self.detail.set(STATE_TEXT["stopped"][1]) if hasattr(self,"detail") else None
         self.endpoint.set("连接未开启") if hasattr(self,"endpoint") else None
         self.code.set("") if hasattr(self,"code") else None
     def revoke(self):
