@@ -3,6 +3,7 @@ import http.client
 import importlib.util
 import os
 import gc
+import subprocess
 import threading
 import json
 from pathlib import Path
@@ -237,6 +238,12 @@ class RuntimeIntegrationTests(unittest.TestCase):
         self.assertEqual(result["state"],"ready")
         self.assertTrue(result["can_query"])
         token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
+        if os.environ.get("CONNECTOR_TEST_EXECUTABLE"):
+            from connector_core import runtime_command
+            probe=subprocess.run(runtime_command()+["--worker","reader","--config",str(self.fixture.config),
+                "--strict-read-only","search","你好","--limit","3"],capture_output=True,text=True,encoding="utf-8",timeout=30)
+            # These inputs are generated in setUp; output cannot contain a real account.
+            self.assertEqual(probe.returncode,0,"Synthetic Reader probe: "+probe.stdout[:3000]+probe.stderr[:1000])
         response=self.connector.query(token,{"command":"search","query":"你好"})
         self.assertTrue(response["ok"],response)
         self.assertTrue(any("你好" in row["content"] for row in response["data"]["messages"]))
