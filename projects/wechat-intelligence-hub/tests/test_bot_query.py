@@ -1,6 +1,5 @@
 """Synthetic, black-box Bot query contracts; no real WeChat data."""
 from __future__ import annotations
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -194,6 +193,54 @@ class BotQueryTests(unittest.TestCase):
                               "--reader", str(reader), "--timeout", "1")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(p["error"]["code"], "reader_timeout")
+
+
+    def test_tasks_exclude_completed_and_inactive_records(self):
+        conn = sqlite3.connect(self.db)
+        for ident, status in enumerate(("won", "lost", "ignored", "stale"), 10):
+            conn.execute("insert into opportunities values (?, '示例客户甲','旧项目','已结束',?,'','','', 'opportunity','confirmed')", (ident, status))
+        conn.commit()
+        conn.close()
+        _, p = self.call("tasks")
+        self.assertEqual([o["id"] for o in p["data"]["opportunities"]], [1, 2])
+
+    def test_native_reader_envelope_and_id_provenance(self):
+        reader = self.make_reader(
+            "import json,sys\n"
+            "if sys.argv[1]=='resolve-chat':\n"
+            " print(json.dumps({'ok':True,'data':{'candidates':[{'display_name':'示例客户甲','username':'synthetic-user'}]}}))\n"
+            "else:\n"
+            " print(json.dumps({'ok':True,'data':{'query':{'has_more':True},'messages':[{'local_id':42,'talker':'synthetic-user','chat':'示例客户甲','sender':'客户','time':'2026-10-10T12:00:00+08:00','text':'原生格式','debug':{'path':'/private/account'}}]}}))\n")
+        _, p = self.call("history", "--chat", "示例客户甲", "--live", "--reader", str(reader))
+        message = p["data"]["messages"][0]
+        self.assertEqual(message["reader_local_id"], 42)
+        self.assertEqual(message["id_source"], "wechat_reader")
+        self.assertNotIn("id", message)
+        self.assertNotIn("debug", message)
+        self.assertTrue(p["coverage"]["truncated"])
+
+    def test_live_name_collision_is_not_silently_selected(self):
+        reader = self.make_reader(
+            "import json\n"
+            "print(json.dumps({'ok':True,'data':{'candidates':[{'display_name':'示例客户','username':'synthetic-a'},{'display_name':'示例客户','username':'synthetic-b'}]}}))\n")
+        result, p = self.call("history", "--chat", "示例客户", "--live", "--reader", str(reader))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(p["error"]["code"], "ambiguous_chat")
+        self.assertEqual(len(p["error"]["candidates"]), 2)
+
+    def test_query_wrapper_routes_to_json_entry(self):
+        wrapper = PROJECT.parents[1] / "skills/wechat-intelligence-hub/scripts/hub.sh"
+        env = dict(self.env, WECHAT_HUB_HOME=str(PROJECT), PYTHON_BIN=sys.executable)
+        result = subprocess.run(["bash", str(wrapper), "query", "status", "--db", str(self.db)],
+                                cwd=self.root, env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["data"]["indexed_messages"], 7)
+
+    def test_time_window_rejects_equal_boundaries(self):
+        result, p = self.call("history", "--chat", "示例客户甲",
+                              "--since", "2026-10-10", "--until", "2026-10-10")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(p["error"]["code"], "invalid_request")
 
 if __name__ == "__main__":
     unittest.main()

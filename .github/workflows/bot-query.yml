@@ -26,8 +26,13 @@ jobs:
       - name: Bot query contracts
         run: python -m unittest discover -s projects/wechat-intelligence-hub/tests -p test_bot_query.py -v
       - name: Existing Hub suite
-        run: python -m unittest discover -s projects/wechat-intelligence-hub/tests -v
+        working-directory: projects/wechat-intelligence-hub
+        run: python -m unittest discover -s tests -v
       - name: Reader suite
-        run: python -m unittest discover -s projects/rion-wechat-reader/tests -v
+        working-directory: projects/rion-wechat-reader
+        run: python -m unittest discover -s tests -v
       - name: Public package privacy check
         run: python projects/wechat-intelligence-hub/scripts/build_release.py --out /tmp/wechat-query-package
+
+      - name: Packaged query entry
+        run: python /tmp/wechat-query-package/wechat_query.py --help
