@@ -1,5 +1,7 @@
 """Synthetic connection and pairing checks. Never reads a real account."""
 import http.client
+import importlib.util
+import threading
 import json
 from pathlib import Path
 import stat
@@ -8,7 +10,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from connector_core import Connector, ConnectorError, Gateway
+from connector_core import Connector, ConnectorError, Gateway, RuntimeBackend, safe_access
 
 class FakeBackend:
     def __init__(self):
@@ -155,6 +157,74 @@ class ConnectorTests(unittest.TestCase):
         token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
         self.connector.disconnect()
         status,_=self.request("/query",{"command":"search","query":"x"},token)
-        self.assertEqual(status,503)
+        self.assertEqual(status,401)
+
+    def test_switching_accounts_revokes_existing_device(self):
+        self.ready()
+        token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
+        self.connector.use_existing(self.home/"different-account.json")
+        self.assertTrue(self.connector.ready)
+        self.assertFalse(self.connector.authorize(token))
+    def test_safe_access_can_be_sanitized_twice(self):
+        value=safe_access(safe_access({"state":"ready","live_database_read_ok":True}))
+        self.assertTrue(value["can_query"])
+    def test_stop_invalidates_pending_verification(self):
+        entered,release=threading.Event(),threading.Event()
+        original=self.backend.access
+        self.backend.state="ready"
+        def blocked(*args):
+            entered.set()
+            release.wait(3)
+            return original(*args)
+        self.backend.access=blocked
+        failures=[]
+        def verify():
+            try: self.connector.inspect()
+            except ConnectorError as exc: failures.append(exc.code)
+        thread=threading.Thread(target=verify)
+        thread.start()
+        self.assertTrue(entered.wait(3))
+        self.connector.disconnect()
+        release.set()
+        thread.join(3)
+        self.assertFalse(self.connector.status()["can_query"])
+        self.assertIn("operation_cancelled",failures)
+
+class RuntimeIntegrationTests(unittest.TestCase):
+    """Real worker/Reader path over generated SQLite data, no user account."""
+    def setUp(self):
+        path=Path(__file__).resolve().parents[2]/"rion-wechat-reader/tests/test_reader.py"
+        spec=importlib.util.spec_from_file_location("synthetic_reader_fixture",path)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.fixture=module.ReaderContractTest(methodName="runTest")
+        self.fixture.setUp()
+        self.fixture.config.chmod(0o600)
+        self.home=Path(self.fixture.temp.name)/"connector"
+        self.connector=Connector(self.home,RuntimeBackend())
+    def tearDown(self):
+        self.fixture.tearDown()
+    def test_real_worker_ready_pair_and_read_only_query(self):
+        before={path.name:path.read_bytes() for path in self.fixture.data_root.glob("*.db")}
+        result=self.connector.use_existing(self.fixture.config)
+        self.assertEqual(result["state"],"ready")
+        self.assertTrue(result["can_query"])
+        token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
+        response=self.connector.query(token,{"command":"search","query":"你好"})
+        self.assertTrue(response["ok"],response)
+        self.assertTrue(any("你好" in row["content"] for row in response["data"]["messages"]))
+        serialized=json.dumps(response,ensure_ascii=False)
+        self.assertNotIn(str(self.fixture.data_root),serialized)
+        self.assertNotIn(str(self.fixture.keys),serialized)
+        self.assertEqual(before,{path.name:path.read_bytes() for path in self.fixture.data_root.glob("*.db")})
+    def test_real_worker_import_and_restart(self):
+        result=self.connector.preview(str(self.fixture.data_root),str(self.fixture.keys))
+        self.assertEqual(result["state"],"ready_to_configure",result)
+        result=self.connector.apply(str(self.fixture.data_root),str(self.fixture.keys))
+        self.assertTrue(result["can_query"],result)
+        restored=Connector(self.home,RuntimeBackend())
+        self.assertTrue(restored.inspect()["can_query"])
+        self.assertFalse(restored.status()["paired"])
+
 if __name__=="__main__":
     unittest.main()
