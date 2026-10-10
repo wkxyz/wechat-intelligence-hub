@@ -40,4 +40,9 @@ if [ -z "$PYTHON_BIN" ]; then
     PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
   fi
 fi
+if [ "${1:-}" = "query" ]; then
+  shift
+  export PYTHONDONTWRITEBYTECODE=1
+  exec "$PYTHON_BIN" wechat_query.py "$@"
+fi
 exec "$PYTHON_BIN" wechat_intelligence_hub.py "$@"
