@@ -80,6 +80,7 @@ def main():
     parser=argparse.ArgumentParser(description="WeChat local connector")
     parser.add_argument("--demo",action="store_true",help="Synthetic UI and pairing only; no real account")
     parser.add_argument("--self-test",action="store_true")
+    parser.add_argument("--self-test-ui",action="store_true",help="Open and close a synthetic window; no account read")
     args=parser.parse_args()
     if args.self_test:
         import tkinter
@@ -93,7 +94,8 @@ def main():
         print(json.dumps({"ok":True,"tk_version":tkinter.TkVersion,"sqlcipher":cipher_version,"zstandard":zstandard.__version__,"mode":"no_account_read"}))
         return 0
     from connector_app import launch
-    launch(demo=args.demo)
+    launch(demo=args.demo or args.self_test_ui,auto_close_ms=500 if args.self_test_ui else None)
+    if args.self_test_ui: print(json.dumps({"ok":True,"mode":"synthetic_window"}))
     return 0
 if __name__=="__main__":
     raise SystemExit(main())

@@ -71,6 +71,9 @@ jobs:
       - name: Packaged dependency smoke check
         run: |
           ${{ matrix.executable }} --self-test
+      - name: Packaged native window smoke check
+        run: |
+          ${{ matrix.executable }} --self-test-ui
       - name: Packaged workers with generated databases
         env:
           CONNECTOR_TEST_EXECUTABLE: ${{ matrix.executable }}

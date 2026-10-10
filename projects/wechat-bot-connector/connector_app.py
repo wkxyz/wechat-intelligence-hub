@@ -41,6 +41,7 @@ class ConnectorWindow:
         self.gateway=None
         self.events=queue.Queue()
         self.busy=False
+        self.operation_epoch=0
         self.closed=False
         root.title("微信本地连接器"+(" · 演示" if demo else ""))
         root.geometry("850x740")
@@ -139,33 +140,38 @@ class ConnectorWindow:
     def execute(self,operation):
         if self.busy: return
         self.busy=True
+        self.operation_epoch+=1
+        epoch=self.operation_epoch
+        version=self.connector.generation()
         for button in (self.saved,self.existing,self.preview_button,self.apply_button,self.bind_button,*self.pickers):
             button.configure(state="disabled")
         self.progress.configure(text="正在本机验证，请稍候…")
         def task():
-            try: self.events.put(("result",operation()))
-            except ConnectorError as exc: self.events.put(("error",exc.message))
-            except Exception: self.events.put(("error","操作未完成。原始错误和访问材料未输出。"))
+            try: self.events.put((epoch,"result",operation(version)))
+            except ConnectorError as exc: self.events.put((epoch,"error",exc.message))
+            except Exception: self.events.put((epoch,"error","操作未完成。原始错误和访问材料未输出。"))
         threading.Thread(target=task,daemon=True).start()
     def check_saved(self):
         self.stop()
-        self.execute(lambda:self.connector.use_existing(self.connector.home/"reader.json"))
+        self.execute(lambda version:self.connector.use_existing(self.connector.home/"reader.json",expected_version=version))
     def check_existing(self):
         self.stop()
         path=Path(os.environ.get("RION_WECHAT_READER_CONFIG",str(Path.home()/".config/rion-wechat-reader/config.json")))
-        self.execute(lambda:self.connector.use_existing(path))
+        self.execute(lambda version:self.connector.use_existing(path,expected_version=version))
     def preview(self):
         self.stop()
         root,source=self.database.get().strip(),self.source.get().strip()
         self.connector.use_new_profile()
-        self.execute(lambda:self.connector.preview(root,source))
+        self.execute(lambda version:self.connector.preview(root,source,expected_version=version))
     def apply(self):
         root,source=self.database.get().strip(),self.source.get().strip()
-        self.execute(lambda:self.connector.apply(root,source))
+        self.execute(lambda version:self.connector.apply(root,source,expected_version=version))
     def tick(self):
         if self.closed: return
         try:
-            kind,value=self.events.get_nowait()
+            epoch,kind,value=self.events.get_nowait()
+            if epoch!=self.operation_epoch:
+                raise queue.Empty
             self.busy=False
             for button in (self.saved,self.existing,self.preview_button,self.bind_button,*self.pickers): button.configure(state="normal")
             if kind=="result":
@@ -205,7 +211,14 @@ class ConnectorWindow:
         self.root.clipboard_clear()
         self.root.clipboard_append("地址："+self.endpoint.get()+"\n配对码："+self.code.get())
     def stop(self):
+        self.operation_epoch+=1
+        self.busy=False
         self.connector.disconnect()
+        if hasattr(self,"pickers"):
+            for widget in (self.saved,self.existing,self.preview_button,self.bind_button,*self.pickers):
+                widget.configure(state="normal")
+            self.apply_button.configure(state="disabled")
+            self.progress.configure(text="")
         if self.gateway: self.gateway.stop(); self.gateway=None
         self.status_text.set("连接已停止") if hasattr(self,"status_text") else None
         self.detail.set(STATE_TEXT["stopped"][1]) if hasattr(self,"detail") else None
@@ -221,7 +234,7 @@ class ConnectorWindow:
         self.root.after_cancel(self.tick_after)
         self.root.destroy()
 
-def launch(demo=False):
+def launch(demo=False,auto_close_ms=None):
     temporary=tempfile.TemporaryDirectory() if demo else None
     connector=Connector(Path(temporary.name),DemoBackend()) if demo else Connector()
     root=tk.Tk()
@@ -230,5 +243,6 @@ def launch(demo=False):
         connector.inspect()
         window.status_text.set("演示数据库可读")
         window.detail.set("可操作配对流程；返回的聊天内容全部虚构。")
+    if auto_close_ms is not None: root.after(auto_close_ms,window.close)
     root.mainloop()
     if temporary: temporary.cleanup()

@@ -131,8 +131,16 @@ class Connector:
             self.last_status={"state":"stopped","can_query":False,"counts":{}}
             self.version+=1
 
-    def _access(self, root=None, source=None, apply=False):
+    def generation(self):
+        with self.lock: return self.version
+
+    def _check_generation(self, expected_version):
+        if expected_version is not None and expected_version!=self.version:
+            raise ConnectorError("operation_cancelled","连接状态已改变，本次验证结果已取消。")
+
+    def _access(self, root=None, source=None, apply=False, expected_version=None):
         with self.lock:
+            self._check_generation(expected_version)
             version,config=self.version,self.config
         try:
             value=safe_access(self.backend.access(config,root,source,apply))
@@ -148,41 +156,54 @@ class Connector:
             self.version+=1
         return value
 
-    def inspect(self):
-        self.disconnect()
-        return self._access()
-
-    def use_existing(self, config):
-        self.disconnect()
+    def inspect(self, expected_version=None):
         with self.lock:
+            self._check_generation(expected_version)
+            self.disconnect()
+            version=self.version
+        return self._access(expected_version=version)
+
+    def use_existing(self, config, expected_version=None):
+        with self.lock:
+            self._check_generation(expected_version)
+            self.disconnect()
             self.config=Path(config).expanduser()
-        return self.inspect()
+            version=self.version
+        return self._access(expected_version=version)
 
     def use_new_profile(self):
         self.disconnect()
         with self.lock:
             self.config=self.home/"reader.json"
 
-    def preview(self, root, source):
-        self.disconnect()
-        if not root or not isinstance(root,str) or not source or not isinstance(source,str):
-            raise ConnectorError("selection_required","请选择数据库目录和本机材料文件。")
-        value=self._access(root,source,False)
-        if value["state"]=="ready_to_configure":
-            with self.lock:
+    def preview(self, root, source, expected_version=None):
+        with self.lock:
+            self._check_generation(expected_version)
+            self.disconnect()
+            if not root or not isinstance(root,str) or not source or not isinstance(source,str):
+                raise ConnectorError("selection_required","请选择数据库目录和本机材料文件。")
+            version=self.version
+        value=self._access(root,source,False,expected_version=version)
+        with self.lock:
+            self._check_generation(version+1)
+            if value["state"]=="ready_to_configure":
                 self.preview_selection=(root,source)
         return value
 
-    def apply(self, root, source):
+    def apply(self, root, source, expected_version=None):
         with self.lock:
+            self._check_generation(expected_version)
             if self.preview_selection!=(root,source):
                 raise ConnectorError("preview_required","先验证当前选择的材料，再连接。")
             self.preview_selection=None
-        return self._access(root,source,True)
+            version=self.version
+        return self._access(root,source,True,expected_version=version)
 
     def create_pairing(self):
         with self.lock:
             if not self.ready: raise ConnectorError("not_ready","先完成本地数据库验证。")
+            self.token_digest=None
+            self.version+=1
             code=secrets.token_urlsafe(18)
             self.pair_digest=hashlib.sha256(code.encode()).hexdigest()
             self.pair_deadline=self.clock()+120
