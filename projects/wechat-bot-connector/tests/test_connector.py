@@ -85,6 +85,12 @@ class ConnectorTests(unittest.TestCase):
         self.assertNotIn(token, state)
         self.assertNotIn(code, state)
         self.assertNotIn("synthetic-secret", state)
+    def test_new_pairing_revokes_previous_device(self):
+        self.ready()
+        token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
+        code=self.connector.create_pairing()["code"]
+        self.assertFalse(self.connector.authorize(token))
+        self.assertTrue(self.connector.pair(code)["ok"])
     def test_pairing_expires(self):
         self.ready()
         code = self.connector.create_pairing()["code"]

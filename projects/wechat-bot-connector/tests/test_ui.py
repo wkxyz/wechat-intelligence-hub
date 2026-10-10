@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import threading
+from unittest import mock
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
@@ -34,6 +36,39 @@ class WindowTests(unittest.TestCase):
         self.wait_idle()
         self.assertEqual(self.connector.config,Path(self.temp.name)/"reader.json")
         self.assertTrue(self.connector.ready)
+    def test_stop_cancels_task_before_background_thread_starts(self):
+        release=threading.Event()
+        original=threading.Thread
+        pending=[]
+        def delayed(*args,**kwargs):
+            target=kwargs.pop("target")
+            def task():
+                release.wait(3)
+                target()
+            thread=original(*args,target=task,**kwargs)
+            pending.append(thread)
+            return thread
+        with mock.patch("connector_app.threading.Thread",side_effect=delayed):
+            self.window.check_saved()
+        self.window.stop()
+        release.set()
+        for thread in pending: thread.join(3)
+        self.root.update()
+        self.root.after(200,lambda:None)
+        deadline=time.monotonic()+0.3
+        while time.monotonic()<deadline: self.root.update(); time.sleep(0.01)
+        self.assertFalse(self.connector.ready)
+        self.assertEqual(self.window.status_text.get(),"连接已停止")
+    def test_stop_discards_result_already_queued(self):
+        self.window.check_saved()
+        deadline=time.monotonic()+3
+        while self.window.events.empty() and time.monotonic()<deadline: time.sleep(0.01)
+        self.assertFalse(self.window.events.empty())
+        self.window.stop()
+        deadline=time.monotonic()+0.3
+        while time.monotonic()<deadline: self.root.update(); time.sleep(0.01)
+        self.assertFalse(self.connector.ready)
+        self.assertEqual(self.window.status_text.get(),"连接已停止")
     def test_typed_selection_cancels_authorization(self):
         self.connector.inspect()
         token=self.connector.pair(self.connector.create_pairing()["code"])["device_token"]
