@@ -4,6 +4,8 @@ import importlib.util
 import os
 import gc
 import subprocess
+import sqlite3
+from contextlib import closing
 import threading
 import json
 from pathlib import Path
@@ -215,6 +217,17 @@ class RuntimeIntegrationTests(unittest.TestCase):
         spec.loader.exec_module(module)
         self.fixture=module.ReaderContractTest(methodName="runTest")
         self.fixture.setUp()
+        # Use realistic WeChat timestamps; pre-1970 local dates can fail on
+        # Windows CRT time conversion (the shared Reader fixture starts at 100).
+        with closing(sqlite3.connect(self.fixture.message)) as database:
+            tables=database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'Msg_%'").fetchall()
+            for (table,) in tables:
+                quoted=table.replace('"','""')
+                database.execute(f'UPDATE "{quoted}" SET create_time=create_time+1791590400')
+            database.commit()
+        with closing(sqlite3.connect(self.fixture.session)) as database:
+            database.execute("UPDATE SessionTable SET last_timestamp=last_timestamp+1791590400,sort_timestamp=sort_timestamp+1791590400")
+            database.commit()
         gc.collect()  # SQLite context managers commit but do not close on Windows.
         import rion_wechat_reader as reader
         if sys.platform=="win32":
