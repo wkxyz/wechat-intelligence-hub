@@ -75,6 +75,11 @@ def worker(action):
         return 2
 
 def main():
+    # Console executables on Windows may inherit a non-UTF-8 code page.
+    # Every worker uses the same UTF-8 pipe contract, including nested Reader calls.
+    for stream in (sys.stdin,sys.stdout,sys.stderr):
+        if stream is not None and hasattr(stream,"reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     if len(sys.argv)>2 and sys.argv[1]=="--worker":
         return worker(sys.argv[2])
     parser=argparse.ArgumentParser(description="WeChat local connector")
