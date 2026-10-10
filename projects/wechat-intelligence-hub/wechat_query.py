@@ -185,7 +185,7 @@ def opportunities(conn, args, chat=None):
         terms.append("chat=?")
         values.append(chat)
     if args.command == "tasks" and "status" in fields:
-        terms.append("coalesce(status, '') not in ('closed', 'archived', 'lost', 'expired')")
+        terms.append("status in ('new', 'active', 'waiting', 'paused')")
     where = " where " + " and ".join(terms) if terms else ""
     order = "priority desc, id desc" if "priority" in fields else "id desc"
     rows = conn.execute("select " + ", ".join(selected) + " from opportunities" + where + " order by " + order + " limit ?", values + [args.limit + 1]).fetchall()

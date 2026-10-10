@@ -198,7 +198,7 @@ class BotQueryTests(unittest.TestCase):
     def test_tasks_exclude_completed_and_inactive_records(self):
         conn = sqlite3.connect(self.db)
         for ident, status in enumerate(("won", "lost", "ignored", "stale"), 10):
-            conn.execute("insert into opportunities values (?, '示例客户甲','旧项目','已结束',?,'','','', 'opportunity','confirmed')", (ident, status))
+            conn.execute("insert into opportunities values (?, '示例客户甲','旧项目','已结束',?,'','',99, 'opportunity','confirmed')", (ident, status))
         conn.commit()
         conn.close()
         _, p = self.call("tasks")

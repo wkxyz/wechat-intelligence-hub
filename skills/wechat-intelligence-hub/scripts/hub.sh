@@ -43,6 +43,10 @@ fi
 if [ "${1:-}" = "query" ]; then
   shift
   export PYTHONDONTWRITEBYTECODE=1
+  reader_entry="$SCRIPT_DIR/../../wechat-cli/scripts/reader.sh"
+  if [ -x "$reader_entry" ]; then
+    exec "$PYTHON_BIN" wechat_query.py --reader "$reader_entry" "$@"
+  fi
   exec "$PYTHON_BIN" wechat_query.py "$@"
 fi
 exec "$PYTHON_BIN" wechat_intelligence_hub.py "$@"

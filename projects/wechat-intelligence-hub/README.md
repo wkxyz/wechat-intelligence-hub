@@ -47,6 +47,21 @@
 
 也支持 `wechat-local-vault` / `vault_cli.py` 常见的外层对象，只要里面有 `messages` 数组。
 
+## Bot 问答入口
+
+普通对话查询使用独立的 `wechat_query.py`，输出一个 JSON 文档，不创建报告、不写入索引或商机状态：
+
+```bash
+python3 wechat_query.py status
+python3 wechat_query.py search --query "报价" --limit 20
+python3 wechat_query.py history --chat "示例客户甲" --live --reader /path/to/reader.sh
+python3 wechat_query.py tasks
+```
+
+调用 Reader 时复用已有读取配置。支持带时区的明确窗口，until 为不含终点；索引 ID 与 Reader ID 分开标记，重名返回候选。查询仅依赖 Python 标准库和本项目的 message_time，不需要 HTML 渲染依赖。
+
+Bot 路由、限制与 Dot/Grok API 宿主接入见 [Bot 查询接口](../../skills/wechat-intelligence-hub/references/bot-query.md)。普通问答默认直接答复，以下报告流程只在需要文件导出时使用。
+
 ## 快速使用
 
 面向普通使用者的完整教程见仓库根目录 [`docs/USAGE.md`](../../docs/USAGE.md)，包括首次检查、个人 Profile、常用自然语言请求，以及 Markdown + HTML 双版本输出方法。
