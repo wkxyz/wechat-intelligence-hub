@@ -41,7 +41,7 @@ bash skills/wechat-intelligence-hub/scripts/hub.sh query tasks
 - `--radius` 默认 2，范围 0–10；上下文最多 21 条，limit 必须容纳整个窗口。
 - `--timeout` 为一次实时查询的总 Reader 超时预算，默认 30 秒，最多 30 秒，不自动重试。topic 最多 5 次关键词读取，联系人解析共用预算。
 - `--query` 与可重复的 `--keyword` 都是字面字符串，不是 SQL、通配符或正则。长度上限 256。
-- history/person/reply 需要 `--chat`；search/topic 可限定聊天。不唯一时返回 `ambiguous_chat`，不会选第一个。
+- history/person/reply 需要 `--chat`；search/topic 可限定聊天。模糊匹配不唯一时返回 `ambiguous_chat`，不会选第一个。现有索引只保存聊天名称，无法拆分真实微信里的同名对象；身份重要时应使用实时解析的 Reader username。
 - tasks 的 `--chat` 使用完整已保存聊天名称精确过滤；消息时间窗口不适用于管线状态。
 - 结果只包含必要消息字段，不包含 source_file、密钥、原始诊断或媒体本机路径。消息原文可能自带敏感信息，宿主仍应控制其模型数据范围。
 - 查询不会提取所有附件、OCR 或新承诺；reply 只返回证据，最终措辞由 Bot 生成。
@@ -92,7 +92,7 @@ Reader 消息标记 `id_source: wechat_reader`，使用 `reader_local_id` 和可
 
 错误码包括 invalid_request、database_missing、chat_not_found、ambiguous_chat、message_not_found、reader_failed、reader_timeout 和 query_failed。候选最多 20 个，`candidates_truncated` 表示需要再缩小名字。实时候选包含 name 与 reader_chat_id。Reader 原始 stderr 不进入错误输出。
 
-## Dot / Grok 接入
+## 查询回退\n\n当前进展、今天、本周截至现在等问题优先使用实时读取。历史检索先查索引；若结果为空或没有覆盖该时段，可在已有 Reader 可用时对同一对象、关键词和窗口补一次实时读取。没有可用 Reader 时明确缺口，不能得出“从未聊过”的结论。context 的本地 ID 无法自动转换成 Reader ID。\n\n## Dot / Grok 接入
 
 **能够执行本机命令的 Dot 或其他 Agent 宿主：** 加载本 Skill，并将唯一允许的微信工具绑定到 `hub.sh query`。具体 Bot 产品的工具配置不同；本仓库不声称安装 Skill 就能在任意聊天客户端自动接入。
 

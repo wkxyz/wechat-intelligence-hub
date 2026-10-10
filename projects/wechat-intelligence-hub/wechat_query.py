@@ -127,6 +127,7 @@ def index_coverage(conn, args):
         row = conn.execute("select created_at from runs order by coalesce(message_epoch(created_at), 0) desc, id desc limit 1").fetchone()
         result["last_indexed_at"] = row[0] if row else None
     result["warnings"].append("查询不会刷新索引；需要最新消息时使用 --live。")
+    result["warnings"].append("索引按保存的聊天名称分组，同名对象可能混合；身份核实请使用 Reader 唯一 ID。")
     return result
 
 

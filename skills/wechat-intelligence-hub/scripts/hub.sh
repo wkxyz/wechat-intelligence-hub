@@ -9,7 +9,7 @@ PYTHON_BIN="${PYTHON_BIN:-}"
 if [ -z "$PROJECT_DIR" ]; then
   for candidate in \
     "$PWD" \
-    "$SCRIPT_DIR/../../../../projects/wechat-intelligence-hub" \
+    "$SCRIPT_DIR/../../../projects/wechat-intelligence-hub" \
     "$SCRIPT_DIR/../../../share/wechat-intelligence-hub/projects/wechat-intelligence-hub" \
     "$HOME/wechat-intelligence-hub" \
     "$HOME/Documents/wechat-intelligence-hub"
