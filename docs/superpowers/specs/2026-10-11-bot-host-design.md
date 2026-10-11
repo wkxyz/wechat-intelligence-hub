@@ -1,0 +1,11 @@
+# Existing Bot host integration
+
+The user wants an existing Dot or Grok host to answer questions about their own WeChat, using the existing read-only connector, without generating reports. They selected existing hosts rather than a separate chat application.
+
+The connector keeps account verification, 120-second one-use pairing, session revocation, query limits and device authorization. Add a minimal MCP 2025-11-25/2025-06-18 stdio adapter and a native Python function client. The host client pairs interactively using an existing local code; it stores the device token in a private local file, never in command arguments, model prompts, generated host configuration or logs. A connector restart invalidates that token. The only tools are connection status and search/topic/history/reply evidence; no SQL, arbitrary files, key acquisition, reports or message sending.
+
+A single native executable supports --pair-host, --host-query and --mcp. The GUI exports a token-free host configuration after an explicit user pairing step. This keeps the selected host in charge of model calls and avoids adding a billed model service. Hosts on another computer must use an explicitly configured private SSH stdio route or a supported native remote-computer facility. No public listener or automatic tunnel is created. Grok API custom function calling can use the same Python client; a webpage or cloud-only host gains no local access merely by downloading this repository.
+
+Tests prove MCP initialization and tool invocation over real subprocess pipes, protocol errors, unauthorized access, bounded inputs, lost bindings, native client credentials and loopback-only HTTP requests. CI verifies real HTTP pairing and Reader queries on synthetic data plus all three portable platforms. Existing configuration is independently validated with only aggregate results shown. A fixed GitHub Release workflow builds and uploads immutable archives after tag-triggered checks.
+
+Acceptance: tools can be registered in a supporting existing host; pairing and query flow run without account secrets in output; packages contain dependencies, adapters and host instructions; main includes all work once checks pass. Actual Dot/Grok account configuration cannot be claimed unless that product supports the delivered transport and is configured.

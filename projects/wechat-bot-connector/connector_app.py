@@ -7,7 +7,8 @@ import tempfile
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from connector_core import Connector, ConnectorError, Gateway
+from connector_core import Connector, ConnectorError, Gateway, runtime_command
+from host_client import HostClient, HostError
 
 STATE_TEXT={
  "stopped":("连接已停止","重新检查本机配置后再授权 Bot。"),
@@ -114,6 +115,8 @@ class ConnectorWindow:
         ttk.Label(bot,textvariable=self.binding_state,style="Lead.TLabel",wraplength=690).pack(anchor="w",pady=(0,15))
         controls=ttk.Frame(bot)
         controls.pack(anchor="w")
+        self.host_button=ttk.Button(controls,text="绑定宿主并导出配置",command=self.export_host)
+        self.host_button.pack(side="left",padx=(0,10))
         ttk.Button(controls,text="停止连接",command=self.stop).pack(side="left",padx=(0,10))
         ttk.Button(controls,text="解除 Bot 绑定",command=self.revoke).pack(side="left")
         root.protocol("WM_DELETE_WINDOW",self.close)
@@ -137,17 +140,17 @@ class ConnectorWindow:
     def choose_source(self):
         value=filedialog.askopenfilename(title="选择本机已有访问材料",filetypes=[("JSON","*.json")])
         if value: self.changed(); self.source.set(value)
-    def execute(self,operation):
+    def execute(self,operation,kind="result"):
         if self.busy: return
         self.busy=True
         self.operation_epoch+=1
         epoch=self.operation_epoch
         version=self.connector.generation()
-        for button in (self.saved,self.existing,self.preview_button,self.apply_button,self.bind_button,*self.pickers):
+        for button in (self.saved,self.existing,self.preview_button,self.apply_button,self.bind_button,self.host_button,*self.pickers):
             button.configure(state="disabled")
         self.progress.configure(text="正在本机验证，请稍候…")
         def task():
-            try: self.events.put((epoch,"result",operation(version)))
+            try: self.events.put((epoch,kind,operation(version)))
             except ConnectorError as exc: self.events.put((epoch,"error",exc.message))
             except Exception: self.events.put((epoch,"error","操作未完成。原始错误和访问材料未输出。"))
         threading.Thread(target=task,daemon=True).start()
@@ -173,11 +176,13 @@ class ConnectorWindow:
             if epoch!=self.operation_epoch:
                 raise queue.Empty
             self.busy=False
-            for button in (self.saved,self.existing,self.preview_button,self.bind_button,*self.pickers): button.configure(state="normal")
+            for button in (self.saved,self.existing,self.preview_button,self.bind_button,self.host_button,*self.pickers): button.configure(state="normal")
             if kind=="result":
                 title,detail=STATE_TEXT.get(value["state"],("尚未接通","核对账号目录、访问材料和读取依赖；不会自动获取密钥。"))
                 self.status_text.set(title); self.detail.set(detail)
                 self.apply_button.configure(state="normal" if value["state"]=="ready_to_configure" else "disabled")
+            elif kind=="host":
+                self.save_host_config()
             else:
                 self.status_text.set("操作未完成"); self.detail.set(value)
                 self.apply_button.configure(state="disabled")
@@ -210,12 +215,27 @@ class ConnectorWindow:
         if not self.code.get(): return
         self.root.clipboard_clear()
         self.root.clipboard_append("地址："+self.endpoint.get()+"\n配对码："+self.code.get())
+    def export_host(self):
+        if not self.consent.get() or not self.gateway:
+            messagebox.showinfo("需要配对","先验证数据库、勾选授权并开启连接。"); return
+        code=self.code.get()
+        client=HostClient(self.connector.home)
+        self.execute(lambda version:client.pair(code) if code else client.status(),kind="host")
+    def save_host_config(self):
+        destination=filedialog.asksaveasfilename(title="保存宿主 MCP 配置",initialfile="wechat-mcp.json",
+            defaultextension=".json",filetypes=[("JSON","*.json")])
+        if not destination: return
+        try:
+            HostClient(self.connector.home).export(destination,runtime_command()+["--mcp"])
+            messagebox.showinfo("配置已保存","将配置中的 wechat 项加入支持本机 MCP 的宿主，并重新加载工具。查询时保持此窗口开启。")
+        except HostError:
+            messagebox.showinfo("保存未完成","宿主已绑定，请重新选择可写位置导出配置。")
     def stop(self):
         self.operation_epoch+=1
         self.busy=False
         self.connector.disconnect()
         if hasattr(self,"pickers"):
-            for widget in (self.saved,self.existing,self.preview_button,self.bind_button,*self.pickers):
+            for widget in (self.saved,self.existing,self.preview_button,self.bind_button,self.host_button,*self.pickers):
                 widget.configure(state="normal")
             self.apply_button.configure(state="disabled")
             self.progress.configure(text="")

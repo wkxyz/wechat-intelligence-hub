@@ -19,7 +19,7 @@ bash skills/wechat-intelligence-hub/scripts/hub.sh query tasks
 
 支持 search、topic、history、context、person、reply、tasks 和 status。结果区分本地索引与本次实时读取，标明截止时间、截断和覆盖缺口；回复建议只提供草稿，待办来自已保存的管线状态。
 
-Bot 所在宿主必须能调用微信电脑上的本机工具。此版本提供 CLI、Skill 和自定义函数 schema，尚未部署 Dot/Grok 消息服务，也不自动上传聊天或配置模型密钥。Grok API 接法和 JSON 契约见 [Bot 查询说明](skills/wechat-intelligence-hub/references/bot-query.md)。查询入口不需要 HTML 的 nh3/Pandoc 依赖。
+Bot 所在宿主必须能调用微信电脑上的本机工具。现在提供带原生窗口的 [微信 Bot 本地连接器](projects/wechat-bot-connector/README.md)：验证已有账号、配对、导出 MCP 配置，在现有 Dot／Grok API 调用宿主中使用只读工具。支持 Windows x64、Apple 芯片 Mac 和 Intel Mac 便携包，发布前验证打包程序。具体见 [宿主接入说明](projects/wechat-bot-connector/BOT-HOST.md)。云端网页对话需要本机执行能力或已授权私有通道；项目不自动上传数据库、配置模型密钥或建立公网代理。原 CLI、Skill 和函数 schema 见 [Bot 查询说明](skills/wechat-intelligence-hub/references/bot-query.md)。查询入口不需要 HTML 的 nh3/Pandoc 依赖。
 
 ## 一个产品，两个 Skill
 
