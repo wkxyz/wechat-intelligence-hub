@@ -48,7 +48,7 @@ class HostClient:
             return value
         except HostError:
             raise
-        except (OSError,ValueError,UnicodeError,http.client.HTTPException):
+        except (OSError,ValueError,UnicodeError,RecursionError,http.client.HTTPException):
             raise HostError('connector_unavailable') from None
         finally:
             connection.close()
@@ -67,7 +67,7 @@ class HostClient:
             return token
         except FileNotFoundError:
             raise HostError('pairing_required') from None
-        except (OSError,ValueError,UnicodeError):
+        except (OSError,ValueError,UnicodeError,RecursionError):
             raise HostError('private_binding_required') from None
 
     def pair(self, code):

@@ -113,7 +113,7 @@ def main():
                 result=client.status() if request=={"command":"status"} else client.query(request)
             print(json.dumps(result,ensure_ascii=False))
             return 0
-        except (HostError,ValueError,EOFError,KeyboardInterrupt) as exc:
+        except (HostError,ValueError,RecursionError,EOFError,KeyboardInterrupt) as exc:
             print(json.dumps({"ok":False,"error":{"code":getattr(exc,"code","invalid_request"),
                 "message":"本机工具未完成，请检查连接器状态、查询参数和配对。"}},ensure_ascii=False))
             return 2

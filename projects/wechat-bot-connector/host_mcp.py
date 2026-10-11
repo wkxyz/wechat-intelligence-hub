@@ -106,7 +106,7 @@ def serve(source, sink, client=None):
             return 2
         try:
             request=json.loads(line)
-        except (ValueError,UnicodeError):
+        except (ValueError,UnicodeError,RecursionError):
             reply=error(None,-32700,'Parse error')
         else:
             try:

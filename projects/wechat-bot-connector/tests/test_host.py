@@ -195,6 +195,16 @@ class MCPTests(unittest.TestCase):
             {'jsonrpc':'2.0','id':2,'method':'initialize','params':[]}])
         self.assertEqual([r['error']['code'] for r in replies],[-32600,-32600,-32602])
 
+    def test_deep_json_returns_sanitized_error_and_keeps_serving(self):
+        data='['*1500+'0'+']'*1500+'\n'+json.dumps({'jsonrpc':'2.0','id':8,'method':'ping'})+'\n'
+        result=subprocess.run(native_command()+['--mcp'],input=data,capture_output=True,
+            text=True,encoding='utf-8',env=self.env,timeout=30)
+        self.assertEqual(result.returncode,0)
+        self.assertEqual(result.stderr,'')
+        replies=[json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(replies[0]['error']['code'],-32700)
+        self.assertEqual(replies[1]['result'],{})
+
 class HostFlowTests(unittest.TestCase):
     setUp=MCPTests.setUp
     conversation=MCPTests.conversation
@@ -212,7 +222,9 @@ class HostFlowTests(unittest.TestCase):
         gateway=Gateway(connector)
         gateway.start()
         self.addCleanup(gateway.stop)
-        client=HostClient(self.temp.name)
+        host_home=Path(self.temp.name)/'host'
+        self.env['WECHAT_HOST_HOME']=str(host_home)
+        client=HostClient(host_home)
         code=connector.create_pairing()['code']
         self.assertTrue(client.pair(code)['paired'])
         request={'jsonrpc':'2.0','id':9,'method':'tools/call','params':{
