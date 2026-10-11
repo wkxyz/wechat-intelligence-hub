@@ -39,6 +39,8 @@ bash skills/wechat-intelligence-hub/scripts/hub.sh query history --chat "示例�
 
 详细参数、JSON 约定和 Dot/Grok 接入方式见 [references/bot-query.md](references/bot-query.md)。Bot 宿主若不能运行本机工具，此 Skill 本身不能读取微信。
 
+Grok Bot 已具备本人批准的用户电脑 Shell 通道时，按 [references/grok-local-host.md](references/grok-local-host.md) 固定本机入口并验收。无需在 Bot 云电脑上另起 localhost 服务；机器选择和原有授权范围由宿主控制。
+
 ## 意图路由
 
 | 用户问题 | 查询 | 如何使用结果 |

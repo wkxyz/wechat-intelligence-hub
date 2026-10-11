@@ -92,9 +92,15 @@ Reader 消息标记 `id_source: wechat_reader`，使用 `reader_local_id` 和可
 
 错误码包括 invalid_request、database_missing、chat_not_found、ambiguous_chat、message_not_found、reader_failed、reader_timeout 和 query_failed。候选最多 20 个，`candidates_truncated` 表示需要再缩小名字。实时候选包含 name 与 reader_chat_id。Reader 原始 stderr 不进入错误输出。
 
-## 查询回退\n\n当前进展、今天、本周截至现在等问题优先使用实时读取。历史检索先查索引；若结果为空或没有覆盖该时段，可在已有 Reader 可用时对同一对象、关键词和窗口补一次实时读取。没有可用 Reader 时明确缺口，不能得出“从未聊过”的结论。context 的本地 ID 无法自动转换成 Reader ID。\n\n## Dot / Grok 接入
+## 查询回退
+
+当前进展、今天、本周截至现在等问题优先使用实时读取。历史检索先查索引；若结果为空或没有覆盖该时段，可在已有 Reader 可用时对同一对象、关键词和窗口补一次实时读取。没有可用 Reader 时明确缺口，不能得出“从未聊过”的结论。context 的本地 ID 无法自动转换成 Reader ID。
+
+## Dot / Grok 接入
 
 **能够执行本机命令的 Dot 或其他 Agent 宿主：** 加载本 Skill，并将唯一允许的微信工具绑定到 `hub.sh query`。具体 Bot 产品的工具配置不同；本仓库不声称安装 Skill 就能在任意聊天客户端自动接入。
+
+**已批准用户电脑 Shell 的 Grok Bot：** 使用 [本机接入与验收](grok-local-host.md)，选择微信电脑的 machineId，在该电脑上固定查询入口。Bot 云电脑的 localhost 与用户电脑不同；本机权限不会因安装 Skill 自动增加。
 
 **Grok API 宿主：** 将 [bot-tool.json](bot-tool.json) 注册为自定义函数 `wechat_query`；模型产生函数参数，宿主在微信所在电脑执行查询，再把 JSON 作为函数结果交回模型。参考 [xAI Function Calling](https://docs.x.ai/developers/tools/function-calling)。该文件使用 Responses API 的函数形状；使用其他 API 时按其格式包装。Grok 网页对话不会因此获得本机数据库权限。
 
