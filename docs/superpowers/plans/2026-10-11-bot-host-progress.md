@@ -1,0 +1,7 @@
+# SDD ledger — plan: docs/superpowers/plans/2026-10-11-bot-host.md
+Pre-flight: Tasks 1 and 2 share HostClient; Task 3 consumes runtime modes. No conflict.
+Ruling: Follow the user's selected existing-host route; do not add a separate chat UI or paid model loop — this matches the selected interface — a cloud-only host still needs a supported private route.
+Task 1: complete — 8 native-client contracts RED (missing client) → GREEN. Fixed loopback destination, pre-network validation, private token binding and token-free configuration proved.
+Task 2: implemented — MCP subprocess contracts RED (missing mode/module) → GREEN; export RED (missing export) → GREEN. 16 client/protocol tests pass locally. Loopback flow and 7 GUI tests await CI because this sandbox denies server socket binding. Portable tests launch the packaged executable.
+Task 3: in progress — immutable release workflow and host instructions added. Existing real account status passed strict read-only validation; no messages, keys or account paths exposed.
+Final fresh-context review: two verified defects fixed — Windows fixture now uses a newly created private host directory; recursive JSON decode is sanitized and the server keeps serving (RED crash → GREEN regression). 34 non-socket client/connector/real-worker tests pass using installed SQLCipher runtime. Initial Linux CI confirms all GUI and HTTP/MCP tests pass. Final three-platform CI pending on corrected commit.

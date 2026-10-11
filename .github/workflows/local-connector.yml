@@ -1,7 +1,7 @@
 name: Local connector checks
 on:
   push:
-    branches: ['codex/local-connector']
+    branches: ['codex/local-connector', 'codex/host-integration']
   pull_request:
     paths:
       - 'projects/wechat-bot-connector/**'
@@ -9,6 +9,7 @@ on:
       - 'projects/rion-wechat-reader/**'
       - 'projects/wechat-intelligence-hub/wechat_query.py'
   workflow_dispatch:
+  workflow_call:
 concurrency:
   group: local-connector-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -74,7 +75,7 @@ jobs:
       - name: Packaged native window smoke check
         run: |
           ${{ matrix.executable }} --self-test-ui
-      - name: Packaged workers with generated databases
+      - name: Packaged workers and MCP with generated databases
         env:
           CONNECTOR_TEST_EXECUTABLE: ${{ matrix.executable }}
         run: |

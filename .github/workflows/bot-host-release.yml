@@ -1,0 +1,54 @@
+name: Bot host release
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'projects/wechat-bot-connector/**'
+      - 'projects/rion-wechat-reader/**'
+      - 'projects/wechat-intelligence-hub/wechat_query.py'
+      - '.github/workflows/local-connector.yml'
+      - '.github/workflows/bot-host-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bot-host-release
+  cancel-in-progress: false
+jobs:
+  build:
+    uses: ./.github/workflows/local-connector.yml
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wechat-connector-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish verified immutable portable packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat projects/wechat-bot-connector/VERSION)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="wechat-bot-v${version}"
+          for platform in Windows-x64 macOS-arm64 macOS-x64; do
+            test -s "release-assets/wechat-connector-${platform}.zip"
+          done
+          cd release-assets
+          sha256sum wechat-connector-*.zip > SHA256SUMS.txt
+          cd ..
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Version already released; assets are immutable. Bump VERSION for another release."
+            exit 0
+          fi
+          gh release create "$tag" release-assets/*.zip release-assets/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "微信 Bot 本地连接器 ${version}" \
+            --notes-file projects/wechat-bot-connector/RELEASE-NOTES.md

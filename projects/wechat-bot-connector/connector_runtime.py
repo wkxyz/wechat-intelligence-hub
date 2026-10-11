@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import json
+import getpass
 from pathlib import Path
 import subprocess
 import sys
@@ -83,10 +84,39 @@ def main():
     if len(sys.argv)>2 and sys.argv[1]=="--worker":
         return worker(sys.argv[2])
     parser=argparse.ArgumentParser(description="WeChat local connector")
+    parser.add_argument("--mcp",action="store_true",help="MCP stdio tools for an existing host")
+    parser.add_argument("--pair-host",action="store_true",help="Pair a native host; code is entered privately")
+    parser.add_argument("--host-query",action="store_true",help="Read a JSON tool request from stdin")
+    parser.add_argument("--host-config",action="store_true",help="Print token-free MCP launch configuration")
     parser.add_argument("--demo",action="store_true",help="Synthetic UI and pairing only; no real account")
     parser.add_argument("--self-test",action="store_true")
     parser.add_argument("--self-test-ui",action="store_true",help="Open and close a synthetic window; no account read")
     args=parser.parse_args()
+    modes=(args.mcp,args.pair_host,args.host_query,args.host_config,args.self_test,args.self_test_ui,args.demo)
+    if sum(modes)>1:
+        print(json.dumps({"ok":False,"error":{"code":"invalid_request","message":"一次只选择一个运行模式。"}}))
+        return 2
+    if args.mcp:
+        from host_mcp import serve
+        return serve(sys.stdin.buffer,sys.stdout)
+    if args.pair_host or args.host_query or args.host_config:
+        from host_client import HostClient, HostError
+        client=HostClient()
+        try:
+            if args.pair_host:
+                code=getpass.getpass("输入连接器生成的配对码（不显示）：")
+                result=client.pair(code)
+            elif args.host_config:
+                result=client.descriptor(runtime_command()+["--mcp"])
+            else:
+                request=read_input()
+                result=client.status() if request=={"command":"status"} else client.query(request)
+            print(json.dumps(result,ensure_ascii=False))
+            return 0
+        except (HostError,ValueError,RecursionError,EOFError,KeyboardInterrupt) as exc:
+            print(json.dumps({"ok":False,"error":{"code":getattr(exc,"code","invalid_request"),
+                "message":"本机工具未完成，请检查连接器状态、查询参数和配对。"}},ensure_ascii=False))
+            return 2
     if args.self_test:
         import tkinter
         import rion_wechat_reader

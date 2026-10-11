@@ -13,7 +13,7 @@ args=[sys.executable,"-m","PyInstaller","--noconfirm","--clean","--onedir","--co
       "--specpath",str(ROOT/"build"),"--paths",str(PROJECT),
       "--paths",str(ROOT/"projects/rion-wechat-reader"),
       "--paths",str(ROOT/"projects/wechat-intelligence-hub"),
-      "--hidden-import","connector_app","--hidden-import","rion_wechat_access",
+      "--hidden-import","connector_app","--hidden-import","host_client","--hidden-import","host_mcp","--hidden-import","rion_wechat_access",
       "--hidden-import","rion_wechat_reader","--hidden-import","wechat_query",
       "--hidden-import","message_time","--hidden-import","sqlcipher3.dbapi2",
       "--collect-all","sqlcipher3","--collect-all","zstandard"]
@@ -22,7 +22,9 @@ args.append(str(PROJECT/"connector_runtime.py"))
 subprocess.run(args,check=True)
 folder=ROOT/"dist"/name
 (folder/"README.md").write_bytes((PROJECT/"README.md").read_bytes())
-for license_name in ("LICENSE","NOTICE"):
+for document in ("BOT-HOST.md","VERSION","RELEASE-NOTES.md"):
+    (folder/document).write_bytes((PROJECT/document).read_bytes())
+for license_name in ("LICENSE","NOTICE.md"):
     if (ROOT/license_name).is_file():
         (folder/license_name).write_bytes((ROOT/license_name).read_bytes())
 (folder/"platform.txt").write_text(platform.system()+" "+platform.machine()+"\n",encoding="utf-8")

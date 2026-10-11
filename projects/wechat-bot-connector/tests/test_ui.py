@@ -1,5 +1,6 @@
 """Native GUI flows, using synthetic data and no real WeChat account."""
 import base64
+import json
 import os
 from pathlib import Path
 import sys
@@ -104,7 +105,7 @@ class WindowTests(unittest.TestCase):
         # Layout check: action buttons stay inside the window at its minimum size.
         self.root.geometry("760x720")
         self.root.update()
-        for widget in (self.window.saved,self.window.preview_button,self.window.apply_button):
+        for widget in (self.window.saved,self.window.preview_button,self.window.apply_button,self.window.host_button):
             self.assertLess(widget.winfo_rooty()+widget.winfo_height(),self.root.winfo_rooty()+self.root.winfo_height())
         if os.environ.get("CONNECTOR_SCREENSHOT_DIR"):
             from PIL import ImageGrab
@@ -118,3 +119,23 @@ class WindowTests(unittest.TestCase):
                 path=destination/(name+".png")
                 image.save(path)
                 print("CONNECTOR_SCREENSHOT_"+name.upper()+":"+base64.b64encode(path.read_bytes()).decode())
+
+    def test_window_pairs_host_and_exports_token_free_config(self):
+        from host_client import HostClient, HostError
+        self.connector.inspect()
+        self.window.consent.set(True)
+        self.window.start_pairing()
+        code=self.window.code.get()
+        destination=Path(self.temp.name)/'wechat-mcp.json'
+        with mock.patch('connector_app.filedialog.asksaveasfilename',return_value=str(destination)), \
+             mock.patch('connector_app.messagebox.showinfo'):
+            self.window.export_host()
+            self.wait_idle()
+        value=json.loads(destination.read_text(encoding='utf-8'))
+        self.assertEqual(value['mcpServers']['wechat']['args'][-1],'--mcp')
+        token=json.loads((Path(self.temp.name)/'host-session.json').read_text())['device_token']
+        self.assertNotIn(token,destination.read_text())
+        self.assertNotIn(code,destination.read_text())
+        self.assertTrue(HostClient(self.temp.name).status()['ok'])
+        self.window.revoke()
+        with self.assertRaises(HostError): HostClient(self.temp.name).status()
