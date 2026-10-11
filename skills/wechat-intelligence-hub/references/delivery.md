@@ -1,42 +1,32 @@
-# Delivery Modes
+# 交付方式
 
-根据问题规模选择最轻的有效交付，不要因为使用了 Skill 就自动制造文件。以下名称是 Skill 的交付模式，可在自然语言请求中指定，不是 `wechat_intelligence_hub.py` 的全局命令行参数。
+默认在当前 Bot 对话直接回答。消息多少、涉及多少联系人、是否跨群，都不会自动触发文件输出。普通问答统一使用 `hub.sh query`，详见 [bot-query.md](bot-query.md)。
 
-## Modes
+## 默认文字答复
 
-- `auto`：默认。根据对象数量、时间跨度、是否需要复用和是否需要交互浏览自动选择。
-- `text`：只在当前 Codex 回答中交付，不保存报告文件。
-- `md`：当前回答给行动摘要，同时保存最终 Markdown。
-- `html`：先生成各模块的最终 Markdown，再从本轮报告目录生成综合 HTML；不得交付机器初筛 HTML 冒充最终版。
-- `all`：Markdown、HTML、证据附录和结构化文件都保留，主要用于审计、调试或大型复盘。
+给出结论、当前阶段或建议，以及 `[聊天对象｜时间｜发言人]` 的必要原文依据。说明数据截止时间、截断或读取失败，不展示内部 JSON 或路径。
 
-用户没有明确指定时使用 `auto`：
+“今日有什么进展”“本周项目总结”“过去几天有什么值得关注”仍可直接答复。报告文件只在用户明确要求保存、导出、报告文件、网页或指定文件格式时生成。
 
-| 请求 | 默认交付 |
+文字问答不运行自动写文件的 group-daily、contact-daily、brief 或 render-bundle；也不为得到答案自动写索引。
+
+## 明确要求导出时
+
+| 用户明确要求 | 交付 |
 |---|---|
-| 单个联系人最新回复、是否需要回、回复草稿 | `text` |
-| 单一品牌、项目、关键词或不超过 5 个对象 | `text` |
-| 6 至 15 个对象、跨多群归因、需要后续复用 | `md` |
-| 正式多会话日报、周报、月报或指定时间段报告 | `html`（同时保留分区 Markdown） |
-| 跨多会话的联系人、标签、项目或事件调查 | `md`；明确需要交互浏览时用 `html` |
-| 大范围报告且用户需要搜索、筛选或点击展开 | `html` |
-| 识别规则调试、漏报复核、开源回归 | `all` |
+| 保存 Markdown | 最终编辑后的 Markdown |
+| 网页/HTML | 最终分区 Markdown 与安全渲染的 HTML |
+| 导出证据/CSV/JSON | 请求的结构化格式 |
+| 调试/审计全部中间产物 | 明确范围内的既有报告流程 |
 
-对象数量只是辅助判断。即使消息很多，只要用户问的是一个明确问题，也优先直接回答。即使对象较少，只要涉及长期决策、持续跟进或需要留档，也可以保存 Markdown。
+旧报告命令参数见 [commands.md](commands.md)。不要将这里的交付名称当作全局 CLI 参数。
 
-## Delivery Contract
-
-- `text` 仍需完成必要的实时读取、索引和证据核对；只是不把中间产物作为用户交付。
-- 直接回答优先包含：结论、当前阶段、是否需要行动、一条建议或草稿、必要的群名/时间/发言人证据。
-- 只有报告型请求才展示报告路径。不要向用户罗列内部 JSON、CSV 和机器初筛文件。
-- `group_daily_digest.md`、`group_daily_digest.html`、JSON、CSV 和 appendix 是扫描或审计产物，不是默认最终答复。
-- 群聊最终 Markdown 使用 `group_daily_topics.md` 和 `group_daily_groups.md`，私信使用 `contact_daily_brief.md`。`group_daily_brief.md` 只作旧版兼容。完整日报在各模块语义编辑完成后运行：
+群聊报告按 [group-editorial.md](group-editorial.md) 对机器初筛做语义编辑，保留话题与重点群两种阅读方式；私信按既有联系人规则编辑。需要完整网页时对同一运行目录执行：
 
 ```bash
-$HOME/.codex/skills/wechat-intelligence-hub/scripts/hub.sh render-bundle \
+"${CODEX_HOME:-$HOME/.codex}/skills/wechat-intelligence-hub/scripts/hub.sh" render-bundle \
   /path/to/run-directory \
   --out /path/to/run-directory/wechat_daily_report.html
 ```
 
-- `render-bundle` 生成短入口 `wechat_daily_full.md`、`wechat-report/` 下的分区 Markdown，以及 `wechat_daily_report.html`。HTML 只包含四个顶层入口：综合行动、群聊日报、重点联系人、商单信号雷达。群聊日报页内切换话题日报与重点群聊；支持全局搜索、分区路由、原链接跳转、打印和当前分区 Markdown 下载。证据附录和机器初筛留在本地供审计，不出现在阅读导航中。
-- 未安装 `pandoc` 时保留各模块 Markdown，并明确说明 HTML 未生成；不要退回交付机器初筛 HTML。
+HTML 只使用现有安全渲染器，缺少 nh3/Pandoc 时说明缺口，不能关闭净化或 CSP。机器初筛、CSV 和证据附录只在明确需要时作为用户交付。

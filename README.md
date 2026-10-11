@@ -6,6 +6,21 @@
 
 当前首发版本为 `v0.9.2-preview.2`。微信相关代码已经具备公开测试条件，但不是“安装后自动读取所有人的完整微信历史”：完整数据库模式需要本人授权的本地数据库和访问材料。Reader 核心不获取密钥、不重签名、不注入、不 Hook 微信；可选的实验性接入助手有独立授权和副作用边界，见下文。
 
+## Bot 对话查询
+
+本分支增加面向 Dot、Grok API 宿主及其他本机 Agent 的只读 JSON 入口。普通问题直接在对话中回答，附聊天对象、时间和消息依据，不生成 HTML、Markdown 或 CSV 报告。报告功能保留为明确要求导出时的可选流程。
+
+```bash
+bash skills/wechat-intelligence-hub/scripts/hub.sh query status
+bash skills/wechat-intelligence-hub/scripts/hub.sh query search --query "云渲染" --limit 20
+bash skills/wechat-intelligence-hub/scripts/hub.sh query history --chat "示例客户甲" --live --limit 20
+bash skills/wechat-intelligence-hub/scripts/hub.sh query tasks
+```
+
+支持 search、topic、history、context、person、reply、tasks 和 status。结果区分本地索引与本次实时读取，标明截止时间、截断和覆盖缺口；回复建议只提供草稿，待办来自已保存的管线状态。
+
+Bot 所在宿主必须能调用微信电脑上的本机工具。此版本提供 CLI、Skill 和自定义函数 schema，尚未部署 Dot/Grok 消息服务，也不自动上传聊天或配置模型密钥。Grok API 接法和 JSON 契约见 [Bot 查询说明](skills/wechat-intelligence-hub/references/bot-query.md)。查询入口不需要 HTML 的 nh3/Pandoc 依赖。
+
 ## 一个产品，两个 Skill
 
 | Skill / Project | 作用 | 状态 |

@@ -9,7 +9,7 @@ PYTHON_BIN="${PYTHON_BIN:-}"
 if [ -z "$PROJECT_DIR" ]; then
   for candidate in \
     "$PWD" \
-    "$SCRIPT_DIR/../../../../projects/wechat-intelligence-hub" \
+    "$SCRIPT_DIR/../../../projects/wechat-intelligence-hub" \
     "$SCRIPT_DIR/../../../share/wechat-intelligence-hub/projects/wechat-intelligence-hub" \
     "$HOME/wechat-intelligence-hub" \
     "$HOME/Documents/wechat-intelligence-hub"
@@ -39,5 +39,14 @@ if [ -z "$PYTHON_BIN" ]; then
   if [ -x "$PROJECT_DIR/.venv/bin/python" ]; then
     PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
   fi
+fi
+if [ "${1:-}" = "query" ]; then
+  shift
+  export PYTHONDONTWRITEBYTECODE=1
+  reader_entry="$SCRIPT_DIR/../../wechat-cli/scripts/reader.sh"
+  if [ -x "$reader_entry" ]; then
+    exec "$PYTHON_BIN" wechat_query.py --reader "$reader_entry" "$@"
+  fi
+  exec "$PYTHON_BIN" wechat_query.py "$@"
 fi
 exec "$PYTHON_BIN" wechat_intelligence_hub.py "$@"

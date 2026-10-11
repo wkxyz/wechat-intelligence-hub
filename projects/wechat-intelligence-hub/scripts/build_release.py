@@ -23,6 +23,7 @@ ROOT_FILES = {
     "requirements-html.txt",
     "message_time.py",
     "wechat_intelligence_hub.py",
+    "wechat_query.py",
     "wechat_deal_radar.py",
 }
 PUBLIC_DIRS = {"assets", "docs", "samples", "scripts", "tests"}
